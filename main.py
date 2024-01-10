@@ -85,21 +85,34 @@ def expect_non_empty(logs):
     help="Skip records with undefined channel name",
 )
 def prettify_logs(
-    in_path: Path,
-    out_path: Path = None,
-    start_marker=None,
-    stop_marker=None,
-    skip_none_time=True,
-    skip_none_channel=True,
-    skip_channel=False,
+        in_path: Path,
+        out_path: Path = None,
+        start_marker=None,
+        stop_marker=None,
+        skip_none_time=True,
+        skip_none_channel=True,
+        skip_channel=False,
 ):
+    if in_path.is_dir():
+        for p in in_path.iterdir():
+            prettify_logs(
+                p,
+                out_path,
+                start_marker,
+                stop_marker,
+                skip_none_time,
+                skip_none_channel,
+                skip_channel,
+            )
+
+        return
+
     logging.basicConfig(format="%(levelname)s - %(message)s", level=logging.INFO)
 
     if not in_path.exists():
         logging.fatal(f"Input file is not exists: `{in_path}`")
         return
 
-    assert in_path.exists()
     last_android_time = None
     reached_start_marker = start_marker is None
     reached_stop_marker = False
@@ -109,7 +122,7 @@ def prettify_logs(
         raw_logs_filtered = []
         for msg in tqdm(raw_logs, "Applying channels filtering..."):
             if not any(
-                blacklisted_tag in msg for blacklisted_tag in CHANNELS_BLACKLIST
+                    blacklisted_tag in msg for blacklisted_tag in CHANNELS_BLACKLIST
             ) or any(whitelisted_tag in msg for whitelisted_tag in WHITELIST):
                 raw_logs_filtered.append(msg)
 
@@ -155,7 +168,7 @@ def prettify_logs(
 
                 space = " "
                 msg = space.join(msg.split())
-                msg = msg[msg[: msg.find(pattern)].rfind(space) + 1 :]
+                msg = msg[msg[: msg.find(pattern)].rfind(space) + 1:]
                 content = space.join(msg.split()[1:])
                 if len(content) == 0:
                     continue
@@ -192,10 +205,7 @@ def prettify_logs(
     zipped_logs = out_logs[:1]
     expect_non_empty(zipped_logs)
     for msg in out_logs[1:]:
-
-        def clip_message(msg):
-            return " ".join(msg.split()[1:])
-
+        clip_message = lambda message: " ".join(message.split()[1:])
         if clip_message(zipped_logs[-1]) != clip_message(msg):
             zipped_logs.append(msg)
 
