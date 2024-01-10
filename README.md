@@ -1,3 +1,8 @@
+A simple support tool presented to facilitate the investigation process.
+Compresses incoming log files by about 50 times with very simple configuration and make the traces more readable.
+Currently under development!
+
+
 Installation:
 
 `pip install .`
