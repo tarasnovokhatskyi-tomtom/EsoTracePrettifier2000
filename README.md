@@ -16,3 +16,5 @@ Usage:
 `prettify-logs --help`
 
 `prettify-logs /home/tnovokhatskyi/Desktop/HCP3HMI-36230_esotrace_0000.log -o ~/Desktop`
+
+See **_examples_** directory for comparison of before/after "prettification".
