@@ -67,6 +67,14 @@ def expect_non_empty(logs):
         raise Exception("The result is empty!")
 
 
+def read_list_from_file(path: Path):
+    if path is None:
+        return []
+
+    with path.open() as f:
+        return f.readlines()
+
+
 @click.command("prettify-logs")
 @click.argument("in_path", type=Path)
 @click.option("-o", "--out_path", type=Path, help="Output path")
@@ -84,14 +92,18 @@ def expect_non_empty(logs):
     default=True,
     help="Skip records with undefined channel name",
 )
+@click.option("--priority-whitelist-path", type=Path, help="Path to priority whitelist")
+@click.option("--priority-blacklist-path", type=Path, help="Path to priority blacklist")
 def prettify_logs(
-        in_path: Path,
-        out_path: Path = None,
-        start_marker=None,
-        stop_marker=None,
-        skip_none_time=True,
-        skip_none_channel=True,
-        skip_channel=False,
+    in_path: Path,
+    out_path: Path = None,
+    start_marker=None,
+    stop_marker=None,
+    skip_none_time=True,
+    skip_none_channel=True,
+    skip_channel=False,
+    priority_whitelist_path: Path = None,
+    priority_blacklist_path: Path = None,
 ):
     if in_path.is_dir():
         for p in in_path.iterdir():
@@ -103,6 +115,8 @@ def prettify_logs(
                 skip_none_time,
                 skip_none_channel,
                 skip_channel,
+                priority_whitelist_path,
+                priority_blacklist_path,
             )
 
         return
@@ -113,6 +127,9 @@ def prettify_logs(
         logging.fatal(f"Input file is not exists: `{in_path}`")
         return
 
+    priority_whitelist = read_list_from_file(priority_whitelist_path)
+    priority_blacklist = read_list_from_file(priority_blacklist_path)
+
     last_android_time = None
     reached_start_marker = start_marker is None
     reached_stop_marker = False
@@ -121,9 +138,17 @@ def prettify_logs(
         raw_logs = f.readlines()
         raw_logs_filtered = []
         for msg in tqdm(raw_logs, "Applying channels filtering..."):
-            if not any(
-                    blacklisted_tag in msg for blacklisted_tag in CHANNELS_BLACKLIST
-            ) or any(whitelisted_tag in msg for whitelisted_tag in WHITELIST):
+            should_append = not any(
+                blacklisted_tag in msg for blacklisted_tag in CHANNELS_BLACKLIST
+            ) or any(whitelisted_tag in msg for whitelisted_tag in WHITELIST)
+
+            if any(tag in msg for tag in priority_blacklist):
+                should_append = False
+
+            if any(tag in msg for tag in priority_whitelist):
+                should_append = True
+
+            if should_append:
                 raw_logs_filtered.append(msg)
 
         raw_logs = raw_logs_filtered
@@ -168,7 +193,7 @@ def prettify_logs(
 
                 space = " "
                 msg = space.join(msg.split())
-                msg = msg[msg[: msg.find(pattern)].rfind(space) + 1:]
+                msg = msg[msg[: msg.find(pattern)].rfind(space) + 1 :]
                 content = space.join(msg.split()[1:])
                 if len(content) == 0:
                     continue
