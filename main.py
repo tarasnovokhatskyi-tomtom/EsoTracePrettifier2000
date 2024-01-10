@@ -206,26 +206,3 @@ def prettify_logs(
     logging.info(f"Storing results to {out_path}")
     with out_path.open("w") as f:
         f.writelines(out_logs)
-
-
-if __name__ == "__main__":
-    desktop_path = Path("/home/tnovokhatskyi/Desktop")
-
-    for log_path in desktop_path.iterdir():
-        if not log_path.is_file():
-            continue
-
-        if not log_path.name.endswith(".log"):
-            continue
-
-        try:
-            prettify_logs(
-                log_path,
-                out_path=desktop_path,
-                skip_channel=True,
-                stop_marker="Update processor pushed a progress update of the route "
-                "'79fae147-fb4a-4793-88ad-f66279b2004c', RouteCursor{offset_m: 130, type: 2, reason: 2, "
-                "length_m: 253504, ett: 11823, update_time: 1011}",
-            )
-        except Exception as e:
-            logging.error(e)
