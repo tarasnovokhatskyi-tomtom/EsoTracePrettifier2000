@@ -13,6 +13,7 @@ HEARTBEAT_MARKER = "[HMI-SDK](HEARTBEAT)"
 SOURCE_EXTENSIONS = ["h", "hpp", "cpp"]
 
 EMPTY_RESULT_MESSAGE = "The result is empty!"
+INPUT_FILE_IS_NOT_EXISTS_MESSAGE = "Input file is not exists"
 
 
 def read_list_from_file(path: Path):
@@ -34,6 +35,10 @@ def prettify_logs(
     priority_whitelist_path: Path,
     priority_blacklist_path: Path,
 ):
+    if not in_path.exists():
+        logging.warning(f"{INPUT_FILE_IS_NOT_EXISTS_MESSAGE}: `{in_path}`")
+        return
+
     if in_path.is_dir():
         for p in in_path.iterdir():
             prettify_logs(
@@ -172,7 +177,7 @@ def prettify_logs(
     out_logs = zipped_logs
     logging.debug(f'Log size after "zipping" is {len(out_logs)}')
 
-    logging.info(f"Storing results to {out_path}")
+    logging.info(f"Storing results to `{out_path}`")
     with out_path.open("w") as f:
         f.writelines(out_logs)
 
@@ -210,7 +215,7 @@ def cli(
     logging.basicConfig(format="%(levelname)s - %(message)s", level=logging.INFO)
 
     if not in_path.exists():
-        logging.fatal(f"Input file is not exists: `{in_path}`")
+        logging.fatal(f"{INPUT_FILE_IS_NOT_EXISTS_MESSAGE}: `{in_path}`")
         return
 
     if in_path.is_dir():
