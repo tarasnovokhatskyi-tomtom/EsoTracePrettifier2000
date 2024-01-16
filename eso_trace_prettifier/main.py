@@ -4,67 +4,15 @@ import logging
 import click
 from tqdm import tqdm
 
+from eso_trace_prettifier.blacklist import DEFAULT_BLACKLIST
+from eso_trace_prettifier.whitelist import DEFAULT_WHITELIST
+
 VERBOSITY_LEVELS = ["info", "error", "warn", "debug"]
 ANDROID_TIME_MARKER = "checkTimeDrift Android time"
 HEARTBEAT_MARKER = "[HMI-SDK](HEARTBEAT)"
 SOURCE_EXTENSIONS = ["h", "hpp", "cpp"]
 
-WHITELIST = [
-    "route_impl.cpp:",
-    "HMI >> NAV",
-    "NAV >> HMI",
-    "SendOnlineRequest",
-    "route_progress_updater",
-]
-
-CHANNELS_BLACKLIST = [
-    "onboardmap-ndsdataaccess",
-    "navigation-instruction-engine",
-    "navigation-drivingassistance",
-    "MatchingPolylineIndex Source_polyline_index (",
-    "traffic",
-    "reachable_range_manager",
-    "NdsPoiMap",
-    "Calculating route ETA for offset",
-    "update_task_utility",
-    "mapupdate",
-    "TrafficEventIterator",
-    "DoOnPredictionUpdate",
-    "Reachable Range Trigger Manager",
-    "OnPredictionUpdate",
-    "MapMatcher-NullMapMatcher",
-    "main.HarmanAudioControl",
-    "NdsLaneTileReader",
-    "aggregator-psd-route",
-    "main.HarmanHal-Routing",
-    "kernel.unknown",
-    "VehicleHorizon-PoiCategoryProcessor",
-    "lane_segments_builder_impl.cpp:",
-    "instruction_tracker",
-    "convert_onboard_instruction",
-    "instruction",
-    "Instruction",
-    "task_queue_impl",
-    "mapaccess_component",
-    "tile",
-    "Tile",
-    "Dispatcher::",
-    "traffic_on_route_tracer.cpp",
-    "iterable_arc_buffer",
-    "PSD",
-    "remaining_consumption_and_range_calculator",
-    "MapMatcher-SyncMapDataRequest",
-    "45811bf7" "WarningTransmitter",
-    "Dispatcher",
-    "guidance",
-    "parseus",
-    "VehicleHorizon",
-]
-
-
-def expect_non_empty(logs):
-    if len(logs) == 0:
-        raise Exception("The result is empty!")
+EMPTY_RESULT_MESSAGE = "The result is empty!"
 
 
 def read_list_from_file(path: Path):
@@ -75,35 +23,16 @@ def read_list_from_file(path: Path):
         return f.readlines()
 
 
-@click.command("prettify-logs")
-@click.argument("in_path", type=Path)
-@click.option("-o", "--out_path", type=Path, help="Output path")
-@click.option("--start-marker")
-@click.option("--stop-marker")
-@click.option(
-    "--skip-none-time",
-    is_flag=True,
-    default=True,
-    help="Skip records with undefined timestamp",
-)
-@click.option(
-    "--skip-none-channel",
-    is_flag=True,
-    default=True,
-    help="Skip records with undefined channel name",
-)
-@click.option("--priority-whitelist-path", type=Path, help="Path to priority whitelist")
-@click.option("--priority-blacklist-path", type=Path, help="Path to priority blacklist")
 def prettify_logs(
     in_path: Path,
-    out_path: Path = None,
-    start_marker=None,
-    stop_marker=None,
-    skip_none_time=True,
-    skip_none_channel=True,
-    skip_channel=False,
-    priority_whitelist_path: Path = None,
-    priority_blacklist_path: Path = None,
+    out_path: Path,
+    start_marker,
+    stop_marker,
+    skip_none_time,
+    skip_none_channel,
+    skip_channel,
+    priority_whitelist_path: Path,
+    priority_blacklist_path: Path,
 ):
     if in_path.is_dir():
         for p in in_path.iterdir():
@@ -121,12 +50,6 @@ def prettify_logs(
 
         return
 
-    logging.basicConfig(format="%(levelname)s - %(message)s", level=logging.INFO)
-
-    if not in_path.exists():
-        logging.fatal(f"Input file is not exists: `{in_path}`")
-        return
-
     priority_whitelist = read_list_from_file(priority_whitelist_path)
     priority_blacklist = read_list_from_file(priority_blacklist_path)
 
@@ -139,8 +62,8 @@ def prettify_logs(
         raw_logs_filtered = []
         for msg in tqdm(raw_logs, "Applying channels filtering..."):
             should_append = not any(
-                blacklisted_tag in msg for blacklisted_tag in CHANNELS_BLACKLIST
-            ) or any(whitelisted_tag in msg for whitelisted_tag in WHITELIST)
+                blacklisted_tag in msg for blacklisted_tag in DEFAULT_BLACKLIST
+            ) or any(whitelisted_tag in msg for whitelisted_tag in DEFAULT_WHITELIST)
 
             if any(tag in msg for tag in priority_blacklist):
                 should_append = False
@@ -152,7 +75,7 @@ def prettify_logs(
                 raw_logs_filtered.append(msg)
 
         raw_logs = raw_logs_filtered
-        logging.info(f"Log size after whitelisting is {len(raw_logs)}")
+        logging.debug(f"Log size after whitelisting is {len(raw_logs)}")
 
         for msg in tqdm(raw_logs, "Parsing the file..."):
             if ANDROID_TIME_MARKER in msg:
@@ -209,7 +132,9 @@ def prettify_logs(
             if reached_stop_marker:
                 break
 
-    expect_non_empty(out_logs)
+    if len(out_logs) == 0:
+        logging.info(EMPTY_RESULT_MESSAGE)
+        return
 
     if not reached_stop_marker and stop_marker is not None:
         logging.warning("Stop marker is unreachable.")
@@ -228,16 +153,86 @@ def prettify_logs(
         logging.warning("Overwriting existing file!")
 
     zipped_logs = out_logs[:1]
-    expect_non_empty(zipped_logs)
+    if len(zipped_logs) == 0:
+        logging.info(EMPTY_RESULT_MESSAGE)
+        return
+
     for msg in out_logs[1:]:
         clip_message = lambda message: " ".join(message.split()[1:])
         if clip_message(zipped_logs[-1]) != clip_message(msg):
             zipped_logs.append(msg)
 
-    expect_non_empty(zipped_logs)
+    if len(zipped_logs) == 0:
+        logging.info(EMPTY_RESULT_MESSAGE)
+        return
+
     out_logs = zipped_logs
-    logging.info(f'Log size after "zipping" is {len(out_logs)}')
+    logging.debug(f'Log size after "zipping" is {len(out_logs)}')
 
     logging.info(f"Storing results to {out_path}")
     with out_path.open("w") as f:
         f.writelines(out_logs)
+
+
+@click.command("prettify-logs")
+@click.argument("in_path", type=Path)
+@click.option("-o", "--out_path", type=Path, help="Output path")
+@click.option("--start-marker")
+@click.option("--stop-marker")
+@click.option(
+    "--skip-none-time",
+    is_flag=True,
+    default=True,
+    help="Skip records with undefined timestamp",
+)
+@click.option(
+    "--skip-none-channel",
+    is_flag=True,
+    default=True,
+    help="Skip records with undefined channel name",
+)
+@click.option("--priority-whitelist-path", type=Path, help="Path to priority whitelist")
+@click.option("--priority-blacklist-path", type=Path, help="Path to priority blacklist")
+def cli(
+    in_path: Path,
+    out_path: Path = None,
+    start_marker=None,
+    stop_marker=None,
+    skip_none_time=True,
+    skip_none_channel=True,
+    skip_channel=False,
+    priority_whitelist_path: Path = None,
+    priority_blacklist_path: Path = None,
+):
+    logging.basicConfig(format="%(levelname)s - %(message)s", level=logging.INFO)
+
+    if not in_path.exists():
+        logging.fatal(f"Input file is not exists: `{in_path}`")
+        return
+
+    if in_path.is_dir():
+        for p in in_path.iterdir():
+            prettify_logs(
+                p,
+                out_path,
+                start_marker,
+                stop_marker,
+                skip_none_time,
+                skip_none_channel,
+                skip_channel,
+                priority_whitelist_path,
+                priority_blacklist_path,
+            )
+
+    else:
+        prettify_logs(
+            in_path,
+            out_path,
+            start_marker,
+            stop_marker,
+            skip_none_time,
+            skip_none_channel,
+            skip_channel,
+            priority_whitelist_path,
+            priority_blacklist_path,
+        )

@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 with open("requirements.txt") as f:
@@ -6,8 +6,8 @@ with open("requirements.txt") as f:
 
 setup(
     version="0.1",
-    name="OptimusPrime",
-    scripts=["main.py"],
+    name="eso_trace_prettifier",
+    packages=["eso_trace_prettifier"],
     install_requires=requirements,
-    entry_points={"console_scripts": ["prettify-logs=main:prettify_logs"]},
+    entry_points={"console_scripts": ["prettify-logs=eso_trace_prettifier.main:cli"]},
 )
