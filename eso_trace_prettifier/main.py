@@ -83,7 +83,10 @@ def prettify_logs(
                 continue
 
             if HEARTBEAT_MARKER in msg:
-                last_android_time = msg.split(HEARTBEAT_MARKER)[1].split()[2][:-1][:8]
+                heartbeat_time = msg.split(HEARTBEAT_MARKER)[1].split()[2][:-1][:8]
+                if all(sym.isdigit() or sym == ":" for sym in heartbeat_time):
+                    last_android_time = heartbeat_time
+
                 continue
 
             if start_marker is not None and start_marker in msg:
